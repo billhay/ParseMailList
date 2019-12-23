@@ -5,6 +5,7 @@
     using System.IO;
     using System.Linq;
     using System.Net.Mail;
+    using System.Threading;
 
     class Program
     {
@@ -15,9 +16,10 @@
         static void Main()
         {
             using var writer = File.CreateText(OutputFileName);
+            writer.WriteLine(@"""Original"",""Display Name"",""First Name"",""Last Name"",""E-mail Address""");
 
             File.ReadAllText(InputFileName)                    // read entire txt file as a string
-            .Split(new[]{ ';', '\n', '\r' })            // split into an array of strings, splitting on ';', newline and return  
+            .Split(new[]{ ';', '\n', '\r' })           // split into an array of strings, splitting on ';', newline and return  
             .Where(x => !string.IsNullOrWhiteSpace(x))   // remove any empty strings
             .Select(ToMail)                                   // convert from the input string to a MailAddress object
             .Where(x => x != null)                   // any bad addresses will be returned as nulls - this removes them
@@ -53,7 +55,8 @@
         {
             try
             {
-                return @$"{CsvQuote(address)},""{address.DisplayName}"",{address.Address}";
+                var names = ParseDisplayName(address.DisplayName);
+                return @$"{CsvQuote(address)},""{address.DisplayName}"",""{names.firstName}"",""{names.lastName}"",{address.Address}";
             }
             catch (Exception e)
             {
@@ -67,6 +70,26 @@
                     ? address.Address
                     : $@"""""""{address.DisplayName}"""" <{address.Address}> """;
             }
+
+            static (string firstName, string lastName) ParseDisplayName(string displayName)
+            {
+                displayName ??= string.Empty;
+
+                string[] bits = displayName.Split(',');
+                if (bits.Length == 2)
+                {
+                    displayName = bits[1] + " " + bits[0];
+                }
+
+                bits = displayName.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                return bits.Length switch
+                {
+                    0 => (string.Empty, string.Empty),
+                    1 => (bits[0], string.Empty),
+                    _ => (bits[0], bits[1])
+                };
+            }
+
         }
     }
 
